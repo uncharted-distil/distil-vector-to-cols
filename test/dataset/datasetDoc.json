@@ -1,0 +1,48 @@
+{
+  "about": {
+    "datasetID": "test data",
+    "datasetName": "test data",
+    "description": "test data",
+    "datasetSchemaVersion": "3.1.2",
+    "redacted": false,
+    "license": "test data"
+  },
+  "dataResources": [
+    {
+      "resID": "0",
+      "resPath": "tables/learningData.csv",
+      "resType": "table",
+      "resFormat": [
+        "text/csv"
+      ],
+      "isCollection": false,
+      "columns": [
+        {
+          "colIndex": 0,
+          "colName": "d3mIndex",
+          "colType": "integer",
+          "role": [
+            "index"
+          ]
+        },
+        {
+          "colIndex": 1,
+          "colName": "lat_lon",
+          "colType": "realVector",
+          "role": [
+            "attribute",
+            "locationIndicator"
+          ]
+        },
+        {
+          "colIndex": 2,
+          "colName": "altitude",
+          "colType": "real",
+          "role": [
+            "attribute"
+          ]
+        }
+      ]
+    }
+  ]
+}

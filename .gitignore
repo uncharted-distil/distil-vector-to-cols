@@ -1,0 +1,4 @@
+.mypy_cache
+DistilVectorToCols.egg-info
+vectorcols/__pycache__
+test/__pycache__
