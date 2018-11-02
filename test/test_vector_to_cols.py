@@ -1,6 +1,7 @@
 import unittest
 from os import path
 import csv
+import typing
 
 from d3m import container
 from d3m.primitives.distil import VectorToCols
@@ -11,30 +12,17 @@ class VectorToColsPrimitiveTestCase(unittest.TestCase):
 
     _dataset_path = path.abspath(path.join(path.dirname(__file__), 'dataset'))
 
-    def test_with_labels(self) -> None:
-        dataframe = self._load_data()
+    _source_semantic_types = set((
+        'https://metadata.datadrivendiscovery.org/types/Location',
+        'https://metadata.datadrivendiscovery.org/types/FloatVector',
+        'https://metadata.datadrivendiscovery.org/types/Attribute'
+    ))
 
-        hyperparams_class = \
-            VectorToCols.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
-        hyperparams = hyperparams_class.defaults().replace(
-            {
-                'vector_col_index': 1,
-                'labels': ('lat', 'lon'),
-            }
-        )
-        vector_to_cols = VectorToCols(hyperparams=hyperparams)
-        result_dataframe = vector_to_cols.produce(inputs=dataframe).value
-
-        # verify that we have the expected shape
-        self.assertEqual(result_dataframe.shape[0], 4)
-        self.assertEqual(result_dataframe.shape[1], 5)
-
-        # # check that column headers are the times
-        # self.assertListEqual(times, list(timeseries_dataframe.columns.values))
-
-        # # check that the first row in the dataframe matches the values from the file
-        # ts_values = list(timeseries_dataframe.iloc[0])
-        # self.assertEqual(len(ts_values), len(values))
+    _target_semantic_types = set((
+        'https://metadata.datadrivendiscovery.org/types/Location',
+        'https://metadata.datadrivendiscovery.org/types/Float',
+        'https://metadata.datadrivendiscovery.org/types/Attribute'
+    ))
 
     def test_without_labels(self) -> None:
         dataframe = self._load_data()
@@ -53,35 +41,105 @@ class VectorToColsPrimitiveTestCase(unittest.TestCase):
         self.assertEqual(result_dataframe.shape[0], 4)
         self.assertEqual(result_dataframe.shape[1], 5)
 
-        # # check that column headers are the times
-        # self.assertListEqual(times, list(timeseries_dataframe.columns.values))
+        # verify that the column names were generated as expected
+        self.assertListEqual(['d3mIndex', 'lat_lon', 'altitude', 'lat_lon_0', 'lat_lon_1'],
+                             list(result_dataframe.columns.values))
 
-        # # check that the first row in the dataframe matches the values from the file
-        # ts_values = list(timeseries_dataframe.iloc[0])
-        # self.assertEqual(len(ts_values), len(values))
+        # check that the first row in the dataframe matches the values from the file
+        self.assertListEqual(['1', '40.0,116.0', '100', '40.0', '116.0'],
+                             list(result_dataframe.iloc[0]))
 
-    # def test_can_accept_success(self) -> None:
-    #     dataframe = self._load_timeseries()
+        self._test_metadata(result_dataframe.metadata, ('lat_lon_0', 'lat_lon_1'))
 
-    #     # instantiate the primitive and check acceptance
-    #     hyperparams_class = TimeSeriesLoader.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
-    #     ts_reader = TimeSeriesLoader(hyperparams=hyperparams_class.defaults())
-    #     metadata = ts_reader.can_accept(arguments={'inputs': dataframe.metadata},
-    #                                     hyperparams=hyperparams_class.defaults(), method_name='produce')
-    #     self.assertIsNotNone(metadata)
+    def test_with_labels(self) -> None:
+        dataframe = self._load_data()
 
-    # def test_can_accept_bad_column(self) -> None:
-    #     dataframe = self._load_timeseries()
+        hyperparams_class = \
+            VectorToCols.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
+        hyperparams = hyperparams_class.defaults().replace(
+            {
+                'vector_col_index': 1,
+                'labels': ('lat', 'lon')
+            }
+        )
+        vector_to_cols = VectorToCols(hyperparams=hyperparams)
+        result_dataframe = vector_to_cols.produce(inputs=dataframe).value
 
-    #     # instantiate the primitive and check acceptance
-    #     hyperparams_class = TimeSeriesLoader.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
-    #     hyperparams = hyperparams_class.defaults().replace({'file_col_index': 4})
-    #     ts_reader = TimeSeriesLoader(hyperparams=hyperparams_class.defaults())
-    #     metadata = ts_reader.can_accept(arguments={'inputs': dataframe.metadata},
-    #                                     hyperparams=hyperparams, method_name='produce')
-    #     self.assertIsNone(metadata)
+        # verify that we have the expected shape
+        self.assertEqual(result_dataframe.shape[0], 4)
+        self.assertEqual(result_dataframe.shape[1], 5)
 
-    # @classmethod
+        # verify that the column names were generated as expected
+        self.assertListEqual(['d3mIndex', 'lat_lon', 'altitude', 'lat', 'lon'],
+                             list(result_dataframe.columns.values))
+
+        # check that the first row in the dataframe matches the values from the file
+        self.assertListEqual(['1', '40.0,116.0', '100', '40.0', '116.0'],
+                             list(result_dataframe.iloc[0]))
+
+        self._test_metadata(result_dataframe.metadata, ('lat', 'lon'))
+
+    def test_with_inferred_column(self) -> None:
+        dataframe = self._load_data()
+
+        hyperparams_class = \
+            VectorToCols.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
+        hyperparams = hyperparams_class.defaults().replace(
+            {
+                'labels': ('lat', 'lon')
+            }
+        )
+        vector_to_cols = VectorToCols(hyperparams=hyperparams)
+        result_dataframe = vector_to_cols.produce(inputs=dataframe).value
+
+        # verify that we have the expected shape
+        self.assertEqual(result_dataframe.shape[0], 4)
+        self.assertEqual(result_dataframe.shape[1], 5)
+
+        # verify that the column names were generated as expected
+        self.assertListEqual(['d3mIndex', 'lat_lon', 'altitude', 'lat', 'lon'],
+                             list(result_dataframe.columns.values))
+
+        # check that the first row in the dataframe matches the values from the file
+        self.assertListEqual(['1', '40.0,116.0', '100', '40.0', '116.0'],
+                             list(result_dataframe.iloc[0]))
+
+        # test metadata
+        self._test_metadata(result_dataframe.metadata, ('lat', 'lon'))
+
+    def test_can_accept_success(self) -> None:
+        dataframe = self._load_data()
+
+        # instantiate the primitive and check acceptance
+        hyperparams_class = VectorToCols.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
+        hyperparams = hyperparams_class.defaults().replace({'vector_col_index': 1})
+        vector_to_cols = VectorToCols(hyperparams=hyperparams)
+        metadata = vector_to_cols.can_accept(arguments={'inputs': dataframe.metadata},
+                                             hyperparams=hyperparams_class.defaults(), method_name='produce')
+        self.assertIsNotNone(metadata)
+
+    def test_can_accept_bad_column(self) -> None:
+        dataframe = self._load_data()
+
+        # instantiate the primitive and check acceptance
+        hyperparams_class = VectorToCols.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
+        vector_to_cols = VectorToCols(hyperparams=hyperparams_class.defaults())
+        hyperparams = hyperparams_class.defaults().replace({'vector_col_index': 2})
+        metadata = vector_to_cols.can_accept(arguments={'inputs': dataframe.metadata},
+                                             hyperparams=hyperparams, method_name='produce')
+        self.assertIsNone(metadata)
+
+    def test_can_accept_inferred_column(self) -> None:
+        dataframe = self._load_data()
+
+        # instantiate the primitive and check acceptance
+        hyperparams_class = VectorToCols.metadata.query()['primitive_code']['class_type_arguments']['Hyperparams']
+        vector_to_cols = VectorToCols(hyperparams=hyperparams_class.defaults())
+        hyperparams = hyperparams_class.defaults()
+        metadata = vector_to_cols.can_accept(arguments={'inputs': dataframe.metadata},
+                                             hyperparams=hyperparams, method_name='produce')
+        self.assertIsNotNone(metadata)
+
     def _load_data(cls) -> container.DataFrame:
         dataset_doc_path = path.join(cls._dataset_path, 'datasetDoc.json')
 
@@ -90,16 +148,20 @@ class VectorToColsPrimitiveTestCase(unittest.TestCase):
         dataframe = dataset['0']
         dataframe.metadata = dataframe.metadata.set_for_value(dataframe)
         # add attributes that would transerred over from the DatasetToDataframe call
-        dataframe.metadata = dataframe.metadata.\
-            add_semantic_type((metadata_base.ALL_ELEMENTS, 1),
-                              'https://metadata.datadrivendiscovery.org/types/Location')
-        dataframe.metadata = dataframe.metadata.\
-            add_semantic_type((metadata_base.ALL_ELEMENTS, 1),
-                              'https://metadata.datadrivendiscovery.org/types/FloatVector')
-        dataframe.metadata = dataframe.metadata.\
-            add_semantic_type((metadata_base.ALL_ELEMENTS, 1),
-                              'https://metadata.datadrivendiscovery.org/types/Attribute')
+        for s in cls._source_semantic_types:
+            dataframe.metadata = dataframe.metadata.add_semantic_type((metadata_base.ALL_ELEMENTS, 1), s)
         return dataframe
+
+    def _test_metadata(self, metadata: metadata_base.DataMetadata, names: typing.Sequence[str]) -> None:
+        self.assertEqual(metadata.query(())['dimension']['length'], 4)
+        self.assertEqual(metadata.query((metadata_base.ALL_ELEMENTS,))['dimension']['length'], 5)
+
+        self.assertEqual(names[0], metadata.query_column(3)['name'])
+        self.assertEqual(self._target_semantic_types, set(metadata.query_column(3)['semantic_types']))
+
+        self.assertEqual(names[1], metadata.query_column(4)['name'])
+        self.assertEqual(self._target_semantic_types, set(metadata.query_column(4)['semantic_types']))
+        return None
 
 
 if __name__ == '__main__':

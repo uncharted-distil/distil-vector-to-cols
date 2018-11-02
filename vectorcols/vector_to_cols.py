@@ -9,6 +9,7 @@ import pandas as pd  # type: ignore
 from d3m import container, exceptions, utils as d3m_utils
 from d3m.metadata import base as metadata_base, hyperparams
 from d3m.primitive_interfaces import base, transformer
+from common_primitives import utils
 
 __all__ = ('VectorToColsPrimitive',)
 
@@ -72,7 +73,13 @@ class VectorToColsPrimitive(transformer.TransformerPrimitiveBase[container.DataF
     )
 
     @classmethod
-    def _can_use_column(cls, inputs_metadata: metadata_base.DataMetadata, column_index: int) -> bool:
+    def _find_real_vector_column(cls, inputs_metadata: metadata_base.DataMetadata) -> typing.Optional[int]:
+        indices = utils.list_columns_with_semantic_types(inputs_metadata, cls._semantic_types)
+        return indices[0] if len(indices) > 0 else None
+
+    @classmethod
+    def _can_use_column(cls, inputs_metadata: metadata_base.DataMetadata, column_index: typing.Optional[int]) -> bool:
+
         column_metadata = inputs_metadata.query((metadata_base.ALL_ELEMENTS, column_index))
 
         if not column_metadata or column_metadata['structural_type'] != str:
@@ -90,38 +97,54 @@ class VectorToColsPrimitive(transformer.TransformerPrimitiveBase[container.DataF
                 timeout: float = None,
                 iterations: int = None) -> base.CallResult[container.DataFrame]:
 
-        # make sure the column at the specified index exists and that it is a timeseries column
+        # if no column index is supplied use the first real vector column found in the dataset
         vector_idx = self.hyperparams['vector_col_index']
+        if vector_idx is None:
+            vector_idx = self._find_real_vector_column(inputs.metadata)
+        # validate the column
         if not self._can_use_column(inputs.metadata, vector_idx):
             raise exceptions.InvalidArgumentValueError('column idx=' + str(vector_idx) + ' from '
                                                        + str(inputs.columns) + ' does not contain float vectors')
-        # generate labels if none are supplied
-        labels = self.hyperparams['labels']
+        # flag label generation if none are supplied
+        labels = list(self.hyperparams['labels'])
         if labels is None:
             labels = []
         generate_labels = True if labels is None or len(labels) == 0 else False
 
-        # make a copy of the input dataframe
-        output = container.DataFrame(data=inputs)
-        vector_length = 0
-        count = 0
+        # create a dataframe to hold the new columns
+        vector_dataframe = container.DataFrame(data=[])
+
         # loop over elements of the source vector column
-        for i, v in enumerate(output.iloc[:, vector_idx]):
+        for i, v in enumerate(inputs.iloc[:, vector_idx]):
             elems = v.split(',')
             vector_length = len(elems)
             for j, e in enumerate(elems):
+                # initialize columns when processing first row
                 if i == 0:
-                    # get the name of the vector column
-                    vector_col_metadata = inputs.metadata.query((metadata_base.ALL_ELEMENTS, vector_idx))
+                    # get the name of the source vector column
+                    vector_col_metadata = inputs.metadata.query_column(vector_idx)
                     vector_label = vector_col_metadata['name']
 
                     # create an empty column for each element of the vector
                     if generate_labels:
-                        labels[j] = vector_label + "_" + str(j)
-                    output[labels[j]] = float('nan')
+                        labels.append(vector_label + "_" + str(j))
+                    vector_dataframe[labels[j]] = ''
 
-                # write vector elements into each column
-                output.at[i, labels[j]] = e.strip()
+                # write vector elements into each column - force to string as d3m convention is
+                # to store data as pandas 'obj' type until explicitly cast
+                vector_dataframe.at[i, labels[j]] = str(e.strip())
+
+        # create default d3m metadata structures (rows, columns etc.) and copy the semantic types
+        # from the source vector over, replacing FloatVector with Float
+        vector_dataframe.metadata = vector_dataframe.metadata.set_for_value(vector_dataframe)
+        source_semantic_types = list(inputs.metadata.query_column(vector_idx)['semantic_types'])
+        source_semantic_types.remove('https://metadata.datadrivendiscovery.org/types/FloatVector')
+        source_semantic_types.append('https://metadata.datadrivendiscovery.org/types/Float')
+        for i in range(0, len(labels)):
+            vector_dataframe.metadata = vector_dataframe.metadata.\
+                update_column(i, {'semantic_types': source_semantic_types})
+
+        output = utils.append_columns(inputs, vector_dataframe)
 
         # wrap as a D3M container - metadata should be auto generated
         return base.CallResult(output)
@@ -145,10 +168,15 @@ class VectorToColsPrimitive(transformer.TransformerPrimitiveBase[container.DataF
 
         inputs_metadata = typing.cast(metadata_base.DataMetadata, arguments['inputs'])
 
-        can_use_column = cls._can_use_column(inputs_metadata, hyperparams['vector_col_idx'])
-        if not can_use_column:
-            return None
+        # make sure there's a real vector column (search if unspecified)
+        vector_col_index = hyperparams['vector_col_index']
+        if vector_col_index is not None:
+            can_use_column = cls._can_use_column(inputs_metadata, vector_col_index)
+            if not can_use_column:
+                return None
+        else:
+            inferred_index = cls._find_real_vector_column(inputs_metadata)
+            if inferred_index is None:
+                return None
 
-        # we don't have access to the data at this point so there's not much that we can
-        # do to figure out the resulting shape etc.
         return inputs_metadata
