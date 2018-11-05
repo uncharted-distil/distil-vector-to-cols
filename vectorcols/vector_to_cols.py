@@ -43,8 +43,7 @@ class VectorToColsPrimitive(transformer.TransformerPrimitiveBase[container.DataF
 
     _semantic_types = (
         "https://metadata.datadrivendiscovery.org/types/Location",
-        "https://metadata.datadrivendiscovery.org/types/FloatVector",
-        "https://metadata.datadrivendiscovery.org/types/Attribute"
+        "https://metadata.datadrivendiscovery.org/types/FloatVector"
     )
 
     __author__ = 'Uncharted Software',

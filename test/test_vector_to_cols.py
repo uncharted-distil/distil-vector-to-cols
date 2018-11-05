@@ -14,14 +14,12 @@ class VectorToColsPrimitiveTestCase(unittest.TestCase):
 
     _source_semantic_types = set((
         'https://metadata.datadrivendiscovery.org/types/Location',
-        'https://metadata.datadrivendiscovery.org/types/FloatVector',
-        'https://metadata.datadrivendiscovery.org/types/Attribute'
+        'https://metadata.datadrivendiscovery.org/types/FloatVector'
     ))
 
     _target_semantic_types = set((
         'https://metadata.datadrivendiscovery.org/types/Location',
-        'https://metadata.datadrivendiscovery.org/types/Float',
-        'https://metadata.datadrivendiscovery.org/types/Attribute'
+        'https://metadata.datadrivendiscovery.org/types/Float'
     ))
 
     def test_without_labels(self) -> None:
