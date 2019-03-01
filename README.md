@@ -5,7 +5,7 @@ Given the index of a column containing vector data of length N, creates N new co
 Deployment:
 
 ```shell
-pip install -e git+ssh://git@github.com/unchartedsoftware/distil-vector-to-cols.git#egg=DistilVectorToCols --process-dependency-links
+pip install -e git+ssh://git@github.com/uncharteds-distil/distil-vector-to-cols.git#egg=DistilVectorToCols --process-dependency-links
 ```
 
 Development:
